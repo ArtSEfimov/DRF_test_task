@@ -2,19 +2,23 @@ import random
 import time
 from string import digits, ascii_letters
 
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from django.core.cache import cache as verify_codes_cache
 from rest_framework import status
+from rest_framework.generics import GenericAPIView
+from rest_framework.mixins import ListModelMixin, RetrieveModelMixin
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import UserProfile
-from .serializers import UserPhoneSerializer, VerifyCodeSerializer
+from .serializers import UserPhoneSerializer, VerifyCodeSerializer, UserProfileSerializer
 
 INVITE_CHARS = digits + ascii_letters
 
+User = get_user_model()
 
-class PhoneAuthView(APIView):
+
+class AuthByPhoneView(APIView):
     def post(self, request):
         serializer = UserPhoneSerializer(data=request.data)
         if serializer.is_valid(raise_exception=True):
@@ -51,7 +55,7 @@ class PhoneAuthView(APIView):
         return ''.join(random.choices(INVITE_CHARS, k=6))
 
 
-class VerifyByCode(APIView):
+class VerifyByCodeView(APIView):
     def post(self, request):
         serializer = VerifyCodeSerializer(data=request.data)
         if serializer.is_valid(raise_exception=True):
@@ -64,3 +68,13 @@ class VerifyByCode(APIView):
 
             verify_codes_cache.delete(phone)
             return Response({'message': 'Верификация прошла успешно.'}, status=status.HTTP_200_OK)
+
+
+class UserInfoView(GenericAPIView, ListModelMixin, RetrieveModelMixin):
+    queryset = User.objects.all()
+    serializer_class = UserProfileSerializer
+
+    def get(self, request, *args, **kwargs):
+        if self.kwargs.get('pk'):
+            return self.retrieve(request, *args, **kwargs)
+        return self.list(request, *args, **kwargs)

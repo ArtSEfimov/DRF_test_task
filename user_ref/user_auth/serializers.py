@@ -1,8 +1,11 @@
 import re
 
+from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
 from .models import UserProfile
+
+User = get_user_model()
 
 
 def phone_validator(value):
@@ -34,3 +37,36 @@ class UserPhoneSerializer(serializers.ModelSerializer):
 class VerifyCodeSerializer(serializers.Serializer):
     phone = serializers.CharField(validators=[phone_validator])
     code = serializers.IntegerField(min_value=1000, max_value=9999)
+
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    phone = serializers.SerializerMethodField()
+    own_invite_code = serializers.SerializerMethodField()
+    foreign_invite_code = serializers.SerializerMethodField(read_only=True)
+    invites = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'phone', 'own_invite_code', 'foreign_invite_code', 'invites']
+
+    def get_phone(self, obj):
+        try:
+            return obj.user_profile.phone
+        except AttributeError:
+            return None
+
+    def get_own_invite_code(self, obj):
+        try:
+            return obj.user_profile.own_invite_code
+        except AttributeError:
+            return None
+
+    def get_foreign_invite_code(self, obj):
+        try:
+            return obj.user_profile.invited_by.user_profile.own_invite_code
+        except AttributeError:
+            return None
+
+    def get_invites(self, obj):
+        user_invites_profiles = UserProfile.objects.filter(user__in=obj.invited_users)
+        return UserPhoneSerializer(user_invites_profiles, many=True).data
