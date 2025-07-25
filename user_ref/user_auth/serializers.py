@@ -53,22 +53,13 @@ class UserProfileSerializer(serializers.ModelSerializer):
                   'is_verified']
 
     def get_phone(self, obj):
-        try:
-            return obj.user_profile.phone
-        except AttributeError:
-            return None
+        return obj.user_profile.phone
 
     def get_own_invite_code(self, obj):
-        try:
-            return obj.user_profile.own_invite_code
-        except AttributeError:
-            return None
+        return obj.user_profile.own_invite_code
 
     def get_foreign_invite_code(self, obj):
-        try:
-            return obj.user_profile.invited_by.user_profile.own_invite_code
-        except AttributeError:
-            return None
+        return obj.user_profile.invited_by.user_profile.own_invite_code
 
     def get_invites(self, obj):
         return list(
@@ -77,10 +68,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
         )
 
     def get_is_verified(self, obj):
-        try:
-            return obj.user_profile.is_verified
-        except AttributeError:
-            return None
+        return obj.user_profile.is_verified
 
 
 class InviteCodeSerializer(serializers.Serializer):
