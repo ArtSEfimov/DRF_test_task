@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: ref_postgres
+    environment:
+      POSTGRES_USER: ref_user
+      POSTGRES_PASSWORD: ref
+      POSTGRES_DB: ref_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./ref_pg_data:/var/lib/postgresql/data
