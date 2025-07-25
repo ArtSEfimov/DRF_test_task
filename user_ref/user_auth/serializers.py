@@ -8,36 +8,35 @@ from .models import UserProfile
 User = get_user_model()
 
 
-def phone_validator(value):
-    cleaned_value = re.sub(r'[^+\d]', '', value)
+class PhoneValidationMixin:
 
-    if cleaned_value.startswith('8') or cleaned_value.startswith('7'):
-        cleaned_value = '+7' + cleaned_value[1:]
-    elif cleaned_value.startswith('+7'):
-        cleaned_value = '+7' + cleaned_value[2:]
-    else:
-        raise serializers.ValidationError(
-            'Корректный номер телефона должен начинаться на +7, 7 или 8')
+    @staticmethod
+    def validate_phone(value):
+        cleaned_value = re.sub(r'[^+\d]', '', value)
 
-    if not re.fullmatch(r'^\+7\d{10}$', cleaned_value):
-        raise serializers.ValidationError(
-            'Введите корректный номер телефона в формате +7XXXXXXXXXX, 7XXXXXXXXXX или 8XXXXXXXXXX')
+        if cleaned_value.startswith(('8', '7')):
+            cleaned_value = '+7' + cleaned_value[1:]
+        elif cleaned_value.startswith('+7'):
+            cleaned_value = '+7' + cleaned_value[2:]
+        else:
+            raise serializers.ValidationError(
+                'Корректный номер телефона должен начинаться на +7, 7 или 8')
 
-    return cleaned_value
+        if not re.fullmatch(r'^\+7\d{10}$', cleaned_value):
+            raise serializers.ValidationError(
+                'Введите корректный номер телефона в формате +7XXXXXXXXXX, 7XXXXXXXXXX или 8XXXXXXXXXX')
+
+        return cleaned_value
 
 
-class UserPhoneSerializer(serializers.ModelSerializer):
+class UserPhoneSerializer(PhoneValidationMixin, serializers.ModelSerializer):
     class Meta:
         model = UserProfile
         fields = ['phone']
 
-    @staticmethod
-    def validate_phone(value):
-        return phone_validator(value)
 
-
-class VerifyCodeSerializer(serializers.Serializer):
-    phone = serializers.CharField(validators=[phone_validator])
+class VerifyCodeSerializer(PhoneValidationMixin, serializers.Serializer):
+    phone = serializers.CharField()
     code = serializers.IntegerField(min_value=1000, max_value=9999)
 
 
@@ -72,11 +71,23 @@ class UserProfileSerializer(serializers.ModelSerializer):
             return None
 
     def get_invites(self, obj):
-        # user_invites_profiles = UserProfile.objects.filter(user__in=obj.invited_users.all())
-        return UserPhoneSerializer(obj.invited_users.all(), many=True).data
+        return list(
+            obj.invited_users
+            .values_list('phone', flat=True)
+        )
 
     def get_is_verified(self, obj):
         try:
             return obj.user_profile.is_verified
         except AttributeError:
             return None
+
+
+class InviteCodeSerializer(serializers.Serializer):
+    invite_code = serializers.CharField()
+
+    def validate_invite_code(self, value):
+        if UserProfile.objects.filter(own_invite_code=value).exists():
+            return value
+        raise serializers.ValidationError(
+            f'Invite код {value} не существует')

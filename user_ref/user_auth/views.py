@@ -11,7 +11,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import UserProfile
-from .serializers import UserPhoneSerializer, VerifyCodeSerializer, UserProfileSerializer
+from .serializers import UserPhoneSerializer, VerifyCodeSerializer, UserProfileSerializer, InviteCodeSerializer
 
 INVITE_CHARS = digits + ascii_letters
 
@@ -62,8 +62,6 @@ class VerifyByCodeView(APIView):
             phone = serializer.validated_data['phone']
             user_verify_code = serializer.validated_data['code']
             cached_verify_code = verify_codes_cache.get(phone)
-            print(user_verify_code)
-            print(cached_verify_code)
             if cached_verify_code is None or user_verify_code != cached_verify_code:
                 return Response({'error': 'Код подтверждения некорректен или устарел.'},
                                 status=status.HTTP_400_BAD_REQUEST)
@@ -74,7 +72,12 @@ class VerifyByCodeView(APIView):
 
 
 class UserInfoView(GenericAPIView, ListModelMixin, RetrieveModelMixin):
-    queryset = User.objects.all()
+    queryset = User.objects.select_related(
+        'user_profile_query',
+        'user_profile_query__invited_by'
+    ).prefetch_related(
+        'invited_users'
+    )
     serializer_class = UserProfileSerializer
 
     def get(self, request, *args, **kwargs):
@@ -89,3 +92,21 @@ class RevokeUserVerify(APIView):
         user.user_profile.is_verified = False
         user.user_profile.save()
         return Response({'message': f'Пользователь {pk} не верифицирован'})
+
+
+class ActivateInviteCode(APIView):
+    def post(self, request, pk):
+        serializer = InviteCodeSerializer(data=request.data)
+        if serializer.is_valid(raise_exception=True):
+            invite_code = serializer.validated_data['invite_code']
+            user = User.objects.filter(pk=pk).select_related('user_profile_query').first()
+            if user is None:
+                return Response({'message': f'Пользователь {pk} не найден'}, status=status.HTTP_400_BAD_REQUEST)
+            if user.user_profile.invited_by is not None:
+                return Response({'message': f'Пользователь {pk} уже применял invite код'},
+                                status=status.HTTP_400_BAD_REQUEST)
+
+            invite_code_owner_profile = UserProfile.objects.select_related('user').get(own_invite_code=invite_code)
+            user.user_profile.invited_by = invite_code_owner_profile.user
+            user.user_profile.save()
+            return Response({'message': 'Invite код успешно активирован'}, status=200)
