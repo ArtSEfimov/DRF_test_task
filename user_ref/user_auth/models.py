@@ -7,6 +7,7 @@ class UserProfile(models.Model):
                                 related_name='user_profile',
                                 related_query_name='user_profile_query'
                                 )
+    is_verified = models.BooleanField(default=False)
     phone = models.CharField(max_length=20, unique=True)
     own_invite_code = models.CharField(max_length=6, unique=True)
     invited_by = models.ForeignKey(settings.AUTH_USER_MODEL,

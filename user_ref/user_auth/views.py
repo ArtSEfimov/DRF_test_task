@@ -28,13 +28,13 @@ class AuthByPhoneView(APIView):
             print(verify_code)  # SMS like
             message = f'Код отправлен на номер {phone}'
             user, created = User.objects.get_or_create(
-                user_phone_query__phone=phone,
+                user_profile_query__phone=phone,
                 defaults={'username': f'user_{phone}'}
             )
             if created:
                 invite_code = self.generate_invite_code()
-                UserProfile.objects.create(user=user, phone=phone, invite_code=invite_code)
-                message += f"\nновый пользователь {f'user_{phone}'} создан"
+                UserProfile.objects.create(user=user, phone=phone, own_invite_code=invite_code)
+                message += f", новый пользователь {f'user_{phone}'} создан"
 
             return Response({"message": message})
 
@@ -62,10 +62,13 @@ class VerifyByCodeView(APIView):
             phone = serializer.validated_data['phone']
             user_verify_code = serializer.validated_data['code']
             cached_verify_code = verify_codes_cache.get(phone)
+            print(user_verify_code)
+            print(cached_verify_code)
             if cached_verify_code is None or user_verify_code != cached_verify_code:
                 return Response({'error': 'Код подтверждения некорректен или устарел.'},
                                 status=status.HTTP_400_BAD_REQUEST)
 
+            UserProfile.objects.filter(phone=phone).update(is_verified=True)
             verify_codes_cache.delete(phone)
             return Response({'message': 'Верификация прошла успешно.'}, status=status.HTTP_200_OK)
 
@@ -78,3 +81,11 @@ class UserInfoView(GenericAPIView, ListModelMixin, RetrieveModelMixin):
         if self.kwargs.get('pk'):
             return self.retrieve(request, *args, **kwargs)
         return self.list(request, *args, **kwargs)
+
+
+class RevokeUserVerify(APIView):
+    def get(self, request, pk):
+        user = User.objects.select_related('user_profile_query').get(pk=pk)
+        user.user_profile.is_verified = False
+        user.user_profile.save()
+        return Response({'message': f'Пользователь {pk} не верифицирован'})
