@@ -59,7 +59,10 @@ class UserProfileSerializer(serializers.ModelSerializer):
         return obj.user_profile.own_invite_code
 
     def get_foreign_invite_code(self, obj):
-        return obj.user_profile.invited_by.user_profile.own_invite_code
+        try:
+            return obj.user_profile.invited_by.user_profile.own_invite_code
+        except AttributeError:
+            return None
 
     def get_invites(self, obj):
         return list(

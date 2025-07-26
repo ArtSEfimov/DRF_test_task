@@ -105,6 +105,9 @@ class ActivateInviteCode(APIView):
             if user.user_profile.invited_by is not None:
                 return Response({'message': f'Пользователь {pk} уже применял invite код'},
                                 status=status.HTTP_400_BAD_REQUEST)
+            if user.user_profile.own_invite_code == invite_code:
+                return Response({'message': f'Нельзя применять собственный invite код'},
+                                status=status.HTTP_400_BAD_REQUEST)
 
             invite_code_owner_profile = UserProfile.objects.select_related('user').get(own_invite_code=invite_code)
             user.user_profile.invited_by = invite_code_owner_profile.user
